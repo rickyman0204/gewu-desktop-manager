@@ -1,0 +1,40 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('zoneAPI', {
+  createZone: () => ipcRenderer.invoke('create-zone'),
+  deleteZone: (zoneId) => ipcRenderer.invoke('delete-zone', zoneId),
+  renameZone: (zoneId, newName) => ipcRenderer.invoke('rename-zone', zoneId, newName),
+  readZoneFiles: (zoneName) => ipcRenderer.invoke('read-zone-files', zoneName),
+  readZoneFilesFast: (zoneName) => ipcRenderer.invoke('read-zone-files-fast', zoneName),
+  getFileIcons: (filePaths) => ipcRenderer.invoke('get-file-icons', filePaths),
+  moveFileToZone: (filePath, zoneId) => ipcRenderer.invoke('move-file-to-zone', filePath, zoneId),
+  removeFileFromZone: (filePath) => ipcRenderer.invoke('remove-file-from-zone', filePath),
+  dropFilesOnZone: (zoneId, filePaths) => ipcRenderer.invoke('drop-files-on-zone', zoneId, filePaths),
+  updateZoneBounds: (zoneId, bounds) => ipcRenderer.invoke('update-zone-bounds', zoneId, bounds),
+  resizeStart: (zoneId, dir, mouseX, mouseY) => ipcRenderer.invoke('resize-start', zoneId, dir, mouseX, mouseY),
+  resizeMove: (zoneId, mouseX, mouseY) => ipcRenderer.invoke('resize-move', zoneId, mouseX, mouseY),
+  resizeEnd: (zoneId) => ipcRenderer.invoke('resize-end', zoneId),
+  openFile: (filePath) => ipcRenderer.invoke('open-file', filePath),
+  openFolder: (folderPath) => ipcRenderer.invoke('open-folder', folderPath),
+  showItemInFolder: (filePath) => ipcRenderer.invoke('show-item-in-folder', filePath),
+  getZoneData: (zoneId) => ipcRenderer.invoke('get-zone-data', zoneId),
+  updateZoneColor: (zoneId, color) => ipcRenderer.invoke('update-zone-color', zoneId, color),
+  updateZoneIconSize: (zoneId, iconSize) => ipcRenderer.invoke('update-zone-icon-size', zoneId, iconSize),
+  getFileIcon: (filePath) => ipcRenderer.invoke('get-file-icon', filePath),
+  getZoneColors: () => ipcRenderer.invoke('get-zone-colors'),
+  hideZone: (zoneId) => ipcRenderer.invoke('hide-zone', zoneId),
+  updateZoneLock: (zoneId, locked) => ipcRenderer.invoke('update-zone-lock', zoneId, locked),
+  pickFiles: () => ipcRenderer.invoke('pick-files'),
+  pickImage: () => ipcRenderer.invoke('pick-image'),
+  pickFolders: () => ipcRenderer.invoke('pick-folders'),
+  addZoneBgImage: (zoneId, imagePath) => ipcRenderer.invoke('add-zone-bg-image', zoneId, imagePath),
+  removeZoneBgImage: (zoneId) => ipcRenderer.invoke('remove-zone-bg-image', zoneId),
+  readImageFile: (filePath) => ipcRenderer.invoke('read-image-file', filePath),
+  updateZoneTheme: (zoneId, theme) => ipcRenderer.invoke('update-zone-theme', zoneId, theme),
+  getZoneCount: () => ipcRenderer.invoke('get-zone-count'),
+
+  onZoneInit: (cb) => { ipcRenderer.on('zone-init', (e, data) => cb(data)); },
+  onZoneBoundsUpdated: (cb) => { ipcRenderer.on('zone-bounds-updated', (e, bounds) => cb(bounds)); },
+
+  logToMain: (msg) => ipcRenderer.send('renderer-log', msg)
+});

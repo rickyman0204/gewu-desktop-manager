@@ -1,0 +1,1886 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>Zone</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --zone-color: #6c5ce7;
+      --zone-color-rgb: 108, 92, 231;
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: transparent;
+      overflow: hidden;
+      font-family: 'Segoe UI Variable', 'Segoe UI', -apple-system, 'Microsoft YaHei', sans-serif;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .zone-wrapper {
+      width: 100%; height: 100%;
+      position: relative;
+      padding: 6px;
+    }
+
+    .zone {
+      width: 100%; height: 100%;
+      position: relative;
+      border-radius: 16px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: filter 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+
+    .glass-base {
+      position: absolute;
+      inset: 0;
+      background: rgba(12, 12, 32, 0.52);
+      border-radius: 16px;
+      z-index: 0;
+      backdrop-filter: blur(28px) saturate(1.4);
+      -webkit-backdrop-filter: blur(28px) saturate(1.4);
+    }
+
+    .glass-noise {
+      position: absolute;
+      inset: 0;
+      border-radius: 16px;
+      z-index: 1;
+      opacity: 0.06;
+      pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+      background-size: 256px 256px;
+    }
+
+    .glass-tint {
+      position: absolute;
+      inset: 0;
+      border-radius: 16px;
+      z-index: 2;
+      pointer-events: none;
+      background: linear-gradient(
+        135deg,
+        rgba(var(--zone-color-rgb, 108, 92, 231), 0.48) 0%,
+        rgba(var(--zone-color-rgb, 108, 92, 231), 0.28) 100%
+      );
+      transition: none;
+    }
+    .zone.drag-over .glass-tint {
+      background: linear-gradient(
+        135deg,
+        rgba(var(--zone-color-rgb, 108, 92, 231), 0.58) 0%,
+        rgba(var(--zone-color-rgb, 108, 92, 231), 0.38) 100%
+      );
+    }
+
+    .glass-border {
+      position: absolute;
+      inset: 0;
+      border-radius: 16px;
+      z-index: 3;
+      pointer-events: none;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+    }
+    .zone.drag-over .glass-border {
+      border-color: rgba(255, 255, 255, 0.15);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.1),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.15),
+        0 0 20px rgba(var(--zone-color-rgb, 108, 92, 231), 0.15);
+    }
+
+    .glass-specular {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 50%;
+      border-radius: 16px 16px 0 0;
+      z-index: 4;
+      pointer-events: none;
+      background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.06) 0%,
+        transparent 100%
+      );
+    }
+
+    .glass-glow-top {
+      position: absolute;
+      top: -1px; left: 20%; right: 20%;
+      height: 1px;
+      z-index: 5;
+      pointer-events: none;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(var(--zone-color-rgb, 108, 92, 231), 0.4),
+        transparent
+      );
+    }
+
+    .glass-shadow {
+      position: absolute;
+      inset: -4px;
+      border-radius: 18px;
+      z-index: -1;
+      pointer-events: none;
+      background: transparent;
+      box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.4),
+        0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+    .zone.drag-over .glass-shadow {
+      box-shadow:
+        0 12px 48px rgba(0, 0, 0, 0.5),
+        0 4px 12px rgba(0, 0, 0, 0.25),
+        0 0 40px rgba(var(--zone-color-rgb, 108, 92, 231), 0.12);
+    }
+
+    .header {
+      height: 36px;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 6px;
+      -webkit-app-region: drag;
+      position: relative;
+      z-index: 4;
+      flex-shrink: 0;
+    }
+
+    .zone-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.95);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      letter-spacing: 0.5px;
+      max-width: 150px;
+      cursor: default;
+      -webkit-app-region: no-drag;
+      font-family: 'Segoe UI Semibold', 'Microsoft YaHei UI', sans-serif;
+    }
+    .zone-name-input {
+      font-size: 13px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.95);
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 5px;
+      padding: 2px 6px;
+      outline: none;
+      width: 100px;
+      -webkit-app-region: no-drag;
+      letter-spacing: 0.5px;
+      font-family: 'Segoe UI Semibold', 'Microsoft YaHei UI', sans-serif;
+    }
+
+    .header-spacer { flex: 1; }
+
+    .progress-ring {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 6;
+      display: none;
+    }
+    .progress-ring.show { display: block; }
+    .progress-ring svg {
+      transform: rotate(-90deg);
+      display: block;
+    }
+    .progress-ring circle:last-child {
+      stroke-dasharray: 56.55;
+      stroke-dashoffset: 56.55;
+      stroke-linecap: round;
+    }
+
+    .destroy-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 200;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      backdrop-filter: blur(28px) saturate(1.4);
+      -webkit-backdrop-filter: blur(28px) saturate(1.4);
+      border-radius: 16px;
+      opacity: 0;
+      transition: opacity 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+    .destroy-overlay.show {
+      display: flex;
+      opacity: 1;
+    }
+    .destroy-overlay.entering {
+      display: flex;
+    }
+
+    .destroy-card {
+      background: rgba(12, 12, 32, 0.25);
+      backdrop-filter: blur(28px) saturate(1.4);
+      -webkit-backdrop-filter: blur(28px) saturate(1.4);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 50%;
+      padding: 32px 28px 26px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.15),
+        0 8px 32px rgba(0, 0, 0, 0.4);
+      transform: scale(0.7);
+      opacity: 0;
+      transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease;
+      width: 240px;
+      height: 240px;
+      position: relative;
+      overflow: hidden;
+      justify-content: center;
+    }
+    .destroy-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 50%;
+      background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 100%);
+      pointer-events: none;
+      border-radius: 50% 50% 0 0;
+    }
+    .destroy-overlay.show .destroy-card {
+      transform: scale(1);
+      opacity: 1;
+    }
+
+    .destroy-icon {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      background: rgba(239, 68, 68, 0.1);
+      display: flex; align-items: center; justify-content: center;
+      border: 1px solid rgba(239, 68, 68, 0.12);
+      position: relative;
+      flex-shrink: 0;
+    }
+    .destroy-icon svg {
+      width: 22px; height: 22px;
+      color: rgba(239, 68, 68, 0.75);
+    }
+
+    .destroy-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.95);
+      letter-spacing: 1px;
+      font-family: 'Segoe UI Semibold', 'Microsoft YaHei UI', sans-serif;
+      text-align: center;
+    }
+
+    .destroy-desc {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.45);
+      text-align: center;
+      line-height: 1.6;
+      font-family: 'Segoe UI', 'Microsoft YaHei UI', sans-serif;
+      letter-spacing: 0.2px;
+    }
+
+    .destroy-btns {
+      display: flex;
+      gap: 6px;
+      margin-top: 2px;
+      width: 85%;
+    }
+
+    .destroy-btn-confirm {
+      flex: 1;
+      padding: 7px 0;
+      border-radius: 8px;
+      border: none;
+      background: rgba(220, 38, 38, 0.75);
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      font-family: 'Segoe UI Semibold', 'Microsoft YaHei UI', sans-serif;
+      letter-spacing: 1px;
+    }
+    .destroy-btn-confirm:hover {
+      background: rgba(220, 38, 38, 0.95);
+      color: white;
+      box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+    }
+    .destroy-btn-confirm:active {
+      transform: scale(0.97);
+    }
+
+    .destroy-btn-cancel {
+      flex: 1;
+      padding: 7px 0;
+      border-radius: 8px;
+      border: none;
+      background: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.55);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      font-family: 'Segoe UI Semibold', 'Microsoft YaHei UI', sans-serif;
+      letter-spacing: 1px;
+    }
+    .destroy-btn-cancel:hover {
+      background: rgba(255, 255, 255, 0.18);
+      color: rgba(255, 255, 255, 0.95);
+    }
+    .destroy-btn-cancel:active {
+      transform: scale(0.97);
+    }
+
+    @keyframes zoneCreate {
+      0% { transform: scale(0.3); opacity: 0; filter: blur(8px); }
+      50% { transform: scale(1.04); opacity: 0.9; filter: blur(0); }
+      75% { transform: scale(0.98); opacity: 1; filter: blur(0); }
+      100% { transform: scale(1); opacity: 1; filter: blur(0); }
+    }
+    .zone.creating {
+      animation: zoneCreate 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+
+    @keyframes zoneDestroy {
+      0% { transform: scale(1); filter: blur(0); }
+      100% { transform: scale(0.98); filter: blur(1px); }
+    }
+    .zone.destroying {
+      animation: zoneDestroy 0.55s cubic-bezier(0.55, 0, 1, 0.45) forwards;
+      pointer-events: none;
+    }
+    .zone.destroying .glass-base,
+    .zone.destroying .glass-border,
+    .zone.destroying .glass-shadow,
+    .zone.destroying .glass-specular,
+    .zone.destroying .glass-noise,
+    .zone.destroying .glass-tint,
+    .zone.destroying .glass-glow-top,
+    .zone.destroying .header,
+    .zone.destroying .body,
+    .zone.destroying .bg-image-layer,
+    .zone.destroying .resize-handle,
+    .zone.destroying .destroy-overlay,
+    .zone.destroying .watermark {
+      opacity: 0 !important;
+      transition: none;
+    }
+
+    .watermark {
+      position: absolute;
+      bottom: 8px;
+      right: 12px;
+      z-index: 2;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+    .watermark-name {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.28);
+      letter-spacing: 2px;
+      font-weight: 300;
+    }
+    .watermark-author {
+      font-size: 7px;
+      color: rgba(255, 255, 255, 0.1);
+      letter-spacing: 0.5px;
+    }
+
+    @keyframes shardFly {
+      0% {
+        transform: translate(0, 0) rotate(0deg) scale(1);
+        opacity: 0.95;
+      }
+      15% {
+        opacity: 0.9;
+      }
+      50% {
+        opacity: 0.7;
+      }
+      100% {
+        transform: translate(var(--tx), var(--ty)) rotate(var(--rot)) scale(0.2);
+        opacity: 0;
+      }
+    }
+    .shard {
+      position: absolute;
+      pointer-events: none;
+      z-index: 300;
+      background: rgba(12, 12, 32, 0.4);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      animation: shardFly var(--dur) cubic-bezier(0.12, 0.8, 0.3, 1) forwards;
+      animation-delay: var(--delay);
+    }
+
+    @keyframes zoneSwallow {
+      0% { transform: scale(1); }
+      15% { transform: scale(1.06); }
+      30% { transform: scale(0.97); }
+      45% { transform: scale(1.03); }
+      60% { transform: scale(0.99); }
+      75% { transform: scale(1.01); }
+      100% { transform: scale(1); }
+    }
+    @keyframes zoneShake {
+      0%, 100% { transform: translateX(0); }
+      15% { transform: translateX(-3px); }
+      30% { transform: translateX(3px); }
+      45% { transform: translateX(-2px); }
+      60% { transform: translateX(2px); }
+      75% { transform: translateX(-1px); }
+      90% { transform: translateX(1px); }
+    }
+    .zone.swallowing {
+      animation: zoneSwallow 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards,
+                 zoneShake 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+    }
+
+    .header-btn {
+      -webkit-app-region: no-drag;
+      width: 22px; height: 22px;
+      border: none;
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.55);
+      font-size: 16px;
+      font-weight: 300;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      line-height: 1;
+    }
+    .header-btn:hover {
+      background: rgba(255, 255, 255, 0.18);
+      color: rgba(255, 255, 255, 0.95);
+      transform: scale(1.08);
+    }
+    .header-btn:active {
+      transform: scale(0.94);
+    }
+
+    .close-btn {
+      -webkit-app-region: no-drag;
+      width: 20px; height: 20px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.55);
+      font-size: 14px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .close-btn:hover {
+      background: rgba(220, 38, 38, 0.8);
+      color: white;
+      box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+    }
+    .close-btn:active {
+      transform: scale(0.9);
+    }
+
+    .lock-btn {
+      -webkit-app-region: no-drag;
+      width: 20px; height: 20px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.55);
+      font-size: 12px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .lock-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.95);
+    }
+    .lock-btn.locked {
+      color: #b45309;
+      background: rgba(180, 83, 9, 0.1);
+    }
+    .lock-btn.locked:hover {
+      background: rgba(180, 83, 9, 0.18);
+    }
+
+    .zone.locked-mode .resize-handle { display: none; }
+    .zone.locked-mode .size-btn { pointer-events: none; opacity: 0.3; }
+    .zone.locked-mode .color-btn { pointer-events: none; opacity: 0.3; }
+
+    .size-toggle {
+      -webkit-app-region: no-drag;
+      display: flex; align-items: center;
+      gap: 3px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 3px 5px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .size-btn {
+      width: 18px; height: 18px;
+      border: none; border-radius: 5px;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.5);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0s, color 0s, box-shadow 0s;
+      padding: 0;
+    }
+    .size-btn:hover { color: rgba(255, 255, 255, 0.85); }
+    .size-btn.active {
+      background: var(--zone-color, #6c5ce7);
+      color: white;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+      transition: background 0s ease, color 0s, box-shadow 0s;
+    }
+    .size-btn .dot { border-radius: 50%; background: currentColor; }
+    .size-btn[data-size="tiny"] .dot { width: 3px; height: 3px; }
+    .size-btn[data-size="normal"] .dot { width: 5px; height: 5px; }
+    .size-btn[data-size="huge"] .dot { width: 8px; height: 8px; }
+
+    .color-btn {
+      -webkit-app-region: no-drag;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.15);
+      cursor: pointer;
+      transition: border-color 0s, box-shadow 0s;
+      background: var(--zone-color, #6c5ce7);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+      flex-shrink: 0;
+      position: relative;
+      z-index: 5;
+    }
+    .color-btn:hover {
+      border-color: rgba(255, 255, 255, 0.25);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .opacity-btn {
+      -webkit-app-region: no-drag;
+      width: 18px; height: 18px;
+      border-radius: 5px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.06);
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.5);
+      flex-shrink: 0;
+    }
+    .opacity-btn:hover {
+      border-color: rgba(255, 255, 255, 0.25);
+      background: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.75);
+    }
+
+    .opacity-popup {
+      position: fixed;
+      background: rgba(18, 18, 42, 0.97);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 14px 16px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 9999;
+      min-width: 200px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    .opacity-popup.show { display: flex; }
+    .opacity-popup-title {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.45);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .opacity-popup-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .opacity-popup-value {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.7);
+      min-width: 36px;
+      text-align: right;
+    }
+    .opacity-slider {
+      flex: 1;
+      -webkit-appearance: none;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.12);
+      outline: none;
+    }
+    .opacity-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--zone-color, #6c5ce7);
+      cursor: pointer;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+    }
+    .zone.locked-mode .opacity-btn { pointer-events: none; opacity: 0.3; }
+
+    .color-palette {
+      position: fixed;
+      background: rgba(18, 18, 42, 0.97);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 8px;
+      display: none;
+      flex-direction: column;
+      width: 210px;
+      z-index: 9999;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.2);
+    }
+    .color-palette.show { display: flex; }
+
+    .theme-carousel {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 6px;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      -webkit-app-region: no-drag;
+    }
+    .theme-arrow {
+      flex-shrink: 0;
+      width: 20px;
+      height: 20px;
+      border-radius: 5px;
+      border: none;
+      background: rgba(255, 255, 255, 0.06);
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+      -webkit-app-region: no-drag;
+    }
+    .theme-arrow:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.8);
+    }
+    .theme-name {
+      flex: 1;
+      text-align: center;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.85);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: opacity 0.15s ease;
+      -webkit-app-region: no-drag;
+      cursor: default;
+      user-select: none;
+    }
+
+    .color-swatches {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding-top: 4px;
+    }
+
+    .color-swatch {
+      width: 22px; height: 22px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      border: 2px solid transparent;
+      position: relative;
+    }
+    .color-swatch:hover {
+      border-color: rgba(255, 255, 255, 0.3);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      z-index: 1;
+    }
+    .color-swatch.active {
+      border-color: white;
+      box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+    .color-swatch.active::after {
+      content: '';
+      position: absolute;
+      inset: 3px;
+      border-radius: 2px;
+      background: white;
+      clip-path: polygon(14% 50%, 40% 76%, 86% 28%, 78% 20%, 40% 60%, 22% 42%);
+    }
+
+    .color-label {
+      width: 100%;
+      font-size: 9px;
+      color: rgba(255, 255, 255, 0.3);
+      text-align: center;
+      padding: 2px 0;
+      letter-spacing: 0.5px;
+    }
+
+    .body {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 6px 10px 12px;
+      position: relative;
+      z-index: 3;
+    }
+    .body::-webkit-scrollbar { width: 3px; }
+    .body::-webkit-scrollbar-track { background: transparent; }
+    .body::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 2px;
+    }
+
+    .drop-hint {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      display: flex; flex-direction: column;
+      align-items: center; gap: 10px;
+      color: rgba(255, 255, 255, 0.12);
+      pointer-events: none;
+    }
+    .drop-hint svg { width: 40px; height: 40px; opacity: 0.45; }
+    .drop-hint span {
+      font-size: 10px;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+
+    .files-grid {
+      display: grid;
+      gap: 3px;
+    }
+    .files-grid.size-tiny {
+      grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+    }
+    .files-grid.size-normal {
+      grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+    }
+    .files-grid.size-huge {
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    }
+
+    .file-item {
+      display: flex; flex-direction: column;
+      align-items: center;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      position: relative;
+    }
+    .file-item:hover {
+      background: rgba(255, 255, 255, 0.07);
+      transform: translateY(-2px);
+    }
+    .file-item:active {
+      transform: translateY(0) scale(0.96);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .file-item .file-icon {
+      display: flex; align-items: center; justify-content: center;
+      position: relative;
+    }
+    .file-item .file-icon img {
+      pointer-events: none;
+      filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
+    }
+    .file-item .file-name {
+      color: rgba(255, 255, 255, 0.75);
+      text-align: center;
+      word-break: break-all;
+      line-height: 1.3;
+      overflow: hidden;
+      width: 100%;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    }
+    .file-item .file-remove {
+      position: absolute;
+      top: 2px; right: 2px;
+      width: 17px; height: 17px;
+      border-radius: 50%;
+      background: rgba(231, 76, 60, 0.88);
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-size: 8px;
+      display: none;
+      align-items: center; justify-content: center;
+      box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3);
+      transition: transform 0.15s;
+    }
+    .file-item .file-remove:hover { transform: scale(1.15); }
+    .file-item .file-remove.visible { display: flex; }
+    .file-item .file-long-press-ring {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+      display: none;
+    }
+    .file-item .file-long-press-ring.show { display: block; }
+    .file-item .file-long-press-ring svg {
+      width: 100%; height: 100%;
+      transform: rotate(-90deg);
+    }
+    .file-item .file-long-press-ring circle { fill: none; stroke-width: 2; }
+    .file-item .file-long-press-ring .lp-bg { stroke: rgba(255, 255, 255, 0.03); }
+    .file-item .file-long-press-ring .lp-fg {
+      stroke: var(--zone-color, #6c5ce7);
+      stroke-dasharray: 314;
+      stroke-dashoffset: 314;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 0.1s linear;
+    }
+
+    .size-tiny .file-item { padding: 2px 1px 1px; }
+    .size-tiny .file-item .file-icon { width: 14px; height: 14px; margin-bottom: 1px; }
+    .size-tiny .file-item .file-icon img { width: 12px; height: 12px; }
+    .size-tiny .file-item .file-name { font-size: 7px; max-height: 1.8em; }
+
+    .size-normal .file-item { padding: 8px 4px 6px; }
+    .size-normal .file-item .file-icon { width: 40px; height: 40px; margin-bottom: 4px; }
+    .size-normal .file-item .file-icon img { width: 36px; height: 36px; }
+    .size-normal .file-item .file-name { font-size: 10px; max-height: 2.6em; }
+
+    .size-huge .file-item { padding: 14px 8px 10px; }
+    .size-huge .file-item .file-icon { width: 80px; height: 80px; margin-bottom: 8px; }
+    .size-huge .file-item .file-icon img { width: 72px; height: 72px; }
+    .size-huge .file-item .file-name { font-size: 13px; max-height: 3.2em; }
+
+    .context-menu {
+      position: fixed;
+      background: rgba(14, 14, 28, 0.97);
+      backdrop-filter: blur(32px);
+      -webkit-backdrop-filter: blur(32px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 6px;
+      min-width: 175px;
+      box-shadow:
+        0 12px 48px rgba(0, 0, 0, 0.6),
+        0 0 0 1px rgba(0, 0, 0, 0.15);
+      z-index: 1000;
+      display: none;
+    }
+    .context-menu.show { display: block; }
+    .context-menu-item {
+      padding: 8px 14px;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.6);
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex; align-items: center; gap: 10px;
+      transition: background 0.12s;
+    }
+    .context-menu-item:hover { background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.9); }
+    .context-menu-item.danger { color: #e74c3c; }
+    .context-menu-item.danger:hover { background: rgba(231, 76, 60, 0.07); }
+
+    .resize-handle { position: absolute; z-index: 10; }
+    .resize-n { top: -3px; left: 16px; right: 16px; height: 6px; cursor: n-resize; }
+    .resize-s { bottom: -3px; left: 16px; right: 16px; height: 6px; cursor: s-resize; }
+    .resize-e { right: -3px; top: 16px; bottom: 16px; width: 6px; cursor: e-resize; }
+    .resize-w { left: -3px; top: 16px; bottom: 16px; width: 6px; cursor: w-resize; }
+    .resize-ne { top: -3px; right: -3px; width: 14px; height: 14px; cursor: ne-resize; }
+    .resize-nw { top: -3px; left: -3px; width: 14px; height: 14px; cursor: nw-resize; }
+    .resize-se { bottom: -3px; right: -3px; width: 14px; height: 14px; cursor: se-resize; }
+    .resize-sw { bottom: -3px; left: -3px; width: 14px; height: 14px; cursor: sw-resize; }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(6px) scale(0.96); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .file-item { animation: fadeInUp 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+
+    .bg-image-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      overflow: hidden;
+    }
+    .bg-image-layer.show {
+      opacity: 1;
+    }
+    .bg-image-layer .bg-tiled {
+      width: 100%; height: 100%;
+      object-fit: cover;
+    }
+    .bg-remove-hint {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(12, 12, 32, 0.92);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 12px 18px;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.85);
+      display: none;
+      align-items: center;
+      gap: 10px;
+      z-index: 100;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+    }
+    .bg-remove-hint.show { display: flex; }
+    .bg-remove-hint .rm-btn {
+      background: #dc2626;
+      border: none; color: white;
+      padding: 4px 12px; border-radius: 6px;
+      font-size: 11px; cursor: pointer; font-weight: 600;
+      transition: all 0.15s;
+    }
+    .bg-remove-hint .rm-btn:hover {
+      background: #b91c1c;
+    }
+    .bg-remove-hint .cancel-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.5);
+      padding: 4px 10px; border-radius: 6px;
+      font-size: 11px; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="zone-wrapper" id="zoneWrapper">
+    <div class="zone" id="zone">
+      <div class="glass-base"></div>
+      <div class="glass-noise"></div>
+      <div class="glass-tint"></div>
+      <div class="glass-border"></div>
+      <div class="glass-specular"></div>
+      <div class="glass-glow-top"></div>
+      <div class="glass-shadow"></div>
+
+      <div class="header" id="zoneHeader">
+        <div class="progress-ring" id="progressRing" style="display:none">
+          <svg viewBox="0 0 24 24" width="24" height="24">
+            <circle cx="12" cy="12" r="9" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="2"/>
+            <circle cx="12" cy="12" r="9" fill="none" stroke="var(--zone-color, #6c5ce7)" stroke-width="2" id="progressCircle"/>
+          </svg>
+        </div>
+        <span class="zone-name" id="zoneName">格</span>
+        <input class="zone-name-input" id="zoneNameInput" style="display:none" maxlength="20">
+        <div class="header-spacer"></div>
+        <div class="size-toggle">
+          <button class="size-btn" data-size="tiny" onclick="setIconSize('tiny')" title="极小"><span class="dot"></span></button>
+          <button class="size-btn" data-size="normal" onclick="setIconSize('normal')" title="正常"><span class="dot"></span></button>
+          <button class="size-btn" data-size="huge" onclick="setIconSize('huge')" title="极大"><span class="dot"></span></button>
+        </div>
+        <button class="color-btn" id="colorBtn" onclick="toggleColorPalette()" title="切换配色"></button>
+        <button class="opacity-btn" id="opacityBtn" onclick="toggleOpacityPopup(event)" title="调节透明度">◐</button>
+        <button class="lock-btn" id="lockBtn" onclick="toggleLock()" title="锁定">🔓</button>
+        <button class="header-btn" onclick="addNewZone()" title="新建格">+</button>
+        <button class="close-btn" id="closeBtn" onclick="closeZone()" title="关闭">✕</button>
+      </div>
+
+      <div class="body" id="body">
+        <div class="bg-image-layer" id="bgImageLayer">
+          <img class="bg-tiled" id="bgTiled" src="" alt="">
+        </div>
+        <div class="drop-hint" id="dropHint">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+            <path d="M12 5v14M5 12h14" stroke-linecap="round"/>
+          </svg>
+          <span>拖放文件到此处</span>
+        </div>
+        <div class="files-grid size-normal" id="filesGrid"></div>
+        <div class="bg-remove-hint" id="bgRemoveHint">
+          <span>移除图片？</span>
+          <button class="rm-btn" onclick="confirmRemoveBg()">移除</button>
+          <button class="cancel-btn" onclick="cancelRemoveBg()">取消</button>
+        </div>
+      </div>
+
+      <div class="watermark">
+        <span class="watermark-name">格物</span>
+        <span class="watermark-author">@刘航境</span>
+      </div>
+
+      <div class="destroy-overlay" id="destroyOverlay">
+        <div class="destroy-card">
+          <div class="destroy-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+          <div class="destroy-title">销毁此格</div>
+          <div class="destroy-desc">该格将被永久销毁<br>格内的快捷方式将返回桌面原位置</div>
+          <div class="destroy-btns">
+            <button class="destroy-btn-cancel" onclick="cancelDestroy()">取消</button>
+            <button class="destroy-btn-confirm" onclick="confirmDestroy()">确认销毁</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="resize-handle resize-n" data-dir="n"></div>
+  <div class="resize-handle resize-s" data-dir="s"></div>
+  <div class="resize-handle resize-e" data-dir="e"></div>
+  <div class="resize-handle resize-w" data-dir="w"></div>
+  <div class="resize-handle resize-ne" data-dir="ne"></div>
+  <div class="resize-handle resize-nw" data-dir="nw"></div>
+  <div class="resize-handle resize-se" data-dir="se"></div>
+  <div class="resize-handle resize-sw" data-dir="sw"></div>
+
+  <div class="context-menu" id="contextMenu">
+    <div class="context-menu-item" onclick="ctxOpen()">▶ 打开</div>
+    <div class="context-menu-item" onclick="ctxOpenFolder()">📂 打开所在文件夹</div>
+    <div class="context-menu-item danger" onclick="ctxRemove()">✕ 从格中移除</div>
+    <div class="context-menu-item danger" id="ctxRemoveImg" onclick="ctxRemoveImage()" style="display:none">🖼 移除图片</div>
+  </div>
+
+  <div class="color-palette" id="colorPalette">
+    <div class="theme-carousel" id="themeCarousel">
+      <button class="theme-arrow" id="themePrev" onclick="prevTheme()">◀</button>
+      <span class="theme-name" id="themeName"></span>
+      <button class="theme-arrow" id="themeNext" onclick="nextTheme()">▶</button>
+    </div>
+    <div class="color-swatches" id="colorSwatches"></div>
+  </div>
+
+  <div class="opacity-popup" id="opacityPopup">
+    <span class="opacity-popup-title">窗口透明度</span>
+    <div class="opacity-popup-row">
+      <span style="font-size:11px;color:rgba(255,255,255,0.4)">深</span>
+      <input type="range" class="opacity-slider" id="opacitySlider" min="30" max="100" value="100" oninput="onOpacityChange(this.value)">
+      <span style="font-size:11px;color:rgba(255,255,255,0.4)">透</span>
+      <span class="opacity-popup-value" id="opacityValue">100%</span>
+    </div>
+  </div>
+
+  <script>
+    let zoneData = null;
+    let currentTheme = 'nordic';
+    let allThemes = {};
+    let currentSize = 'normal';
+    let isResizing = false;
+    let resizeDir = '';
+    let resizeStart = { x: 0, y: 0 };
+    let resizeStartBounds = null;
+    let resizeRafId = null;
+    let resizeDirty = false;
+    let ctxFileIdx = -1;
+    let filesData = [];
+
+    let longPressStart = 0;
+    let longPressProgressTimer = null;
+    const LONG_PRESS_MS = 1500;
+
+    function hexToRgb(hex) {
+      if (!hex || typeof hex !== 'string' || hex.length < 7) return '108, 92, 231';
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      if (isNaN(r) || isNaN(g) || isNaN(b)) return '108, 92, 231';
+      return `${r}, ${g}, ${b}`;
+    }
+
+    function applyZone(zone, animate = true) {
+      zoneData = zone;
+      currentTheme = zone.theme || 'nordic';
+      const color = zone.color || '#6c5ce7';
+      document.documentElement.style.setProperty('--zone-color', color);
+      document.documentElement.style.setProperty('--zone-color-rgb', hexToRgb(color));
+      document.getElementById('zoneName').textContent = zone.name;
+      document.getElementById('colorBtn').style.background = color;
+      document.getElementById('colorBtn').style.boxShadow = `0 0 6px ${color}4d`;
+      setIconSizeUI(zone.iconSize || 'normal');
+      applyLockState(zone.locked || false);
+      applyBgImage(zone.bgImage);
+
+      if (animate) {
+        const zoneEl = document.getElementById('zone');
+        zoneEl.classList.add('creating');
+        zoneEl.addEventListener('animationend', function handler() {
+          zoneEl.classList.remove('creating');
+          zoneEl.removeEventListener('animationend', handler);
+        });
+      }
+
+      loadFiles();
+    }
+
+    function applyBgImage(bgImagePath) {
+      const layer = document.getElementById('bgImageLayer');
+      const img = document.getElementById('bgTiled');
+      if (bgImagePath) {
+        img.src = 'local:///' + bgImagePath.replace(/\\/g, '/');
+        layer.classList.add('show');
+      } else {
+        img.src = '';
+        layer.classList.remove('show');
+      }
+    }
+
+    async function handleImageBtn() {
+      if (!zoneData) return;
+      if (zoneData.bgImage) {
+        document.getElementById('bgRemoveHint').classList.add('show');
+      } else {
+        await pickImage();
+      }
+    }
+
+    async function pickImage() {
+      if (!zoneData) return;
+      const imgPath = await window.zoneAPI.pickImage();
+      if (imgPath) {
+        const result = await window.zoneAPI.addZoneBgImage(zoneData.id, imgPath);
+        if (result.success) {
+          zoneData.bgImage = result.path;
+          await applyBgImage(result.path);
+        }
+      }
+    }
+
+    async function confirmRemoveBg() {
+      document.getElementById('bgRemoveHint').classList.remove('show');
+      if (!zoneData) return;
+      await window.zoneAPI.removeZoneBgImage(zoneData.id);
+      delete zoneData.bgImage;
+      applyBgImage(null);
+    }
+
+    function cancelRemoveBg() {
+      document.getElementById('bgRemoveHint').classList.remove('show');
+    }
+
+    function setIconSize(size) {
+      currentSize = size;
+      setIconSizeUI(size);
+      if (zoneData) {
+        zoneData.iconSize = size;
+        window.zoneAPI.updateZoneIconSize(zoneData.id, size);
+      }
+      document.querySelectorAll('.file-item').forEach(item => {
+        const iconsData = item.getAttribute('data-icons');
+        if (iconsData) {
+          try {
+            const icons = JSON.parse(iconsData);
+            const img = item.querySelector('.file-icon img');
+            if (img && icons[size]) img.src = icons[size];
+          } catch (e) {}
+        }
+      });
+    }
+
+    function setIconSizeUI(size) {
+      currentSize = size;
+      const grid = document.getElementById('filesGrid');
+      grid.className = 'files-grid size-' + size;
+      document.querySelectorAll('.size-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.size === size);
+      });
+    }
+
+    async function loadFiles() {
+      try {
+      if (!zoneData) return;
+      const files = await window.zoneAPI.readZoneFilesFast(zoneData.name);
+      filesData = files;
+
+      const dropHint = document.getElementById('dropHint');
+      const grid = document.getElementById('filesGrid');
+
+      if (files.length === 0) {
+        dropHint.style.display = 'flex';
+        grid.innerHTML = '';
+        grid.className = 'files-grid size-' + (currentSize || 'normal');
+      } else {
+        dropHint.style.display = 'none';
+        grid.className = 'files-grid size-' + (currentSize || 'normal');
+        grid.innerHTML = files.map((f, i) => {
+          const delay = (i * 0.04).toFixed(2);
+          return `
+          <div class="file-item" data-idx="${i}"
+               style="animation-delay:${delay}s"
+               ondblclick="openFileAt(${i})"
+               oncontextmenu="showCtx(event,${i})">
+            <div class="file-long-press-ring">
+              <svg viewBox="0 0 100 100">
+                <circle class="lp-bg" cx="50" cy="50" r="50"/>
+                <circle class="lp-fg" cx="50" cy="50" r="50"/>
+              </svg>
+            </div>
+            <div class="file-icon">
+              <span style="font-size:28px">📄</span>
+            </div>
+            <div class="file-name">${f.name}</div>
+            <button class="file-remove" onclick="event.stopPropagation();removeFileAt(${i})">✕</button>
+          </div>`;
+        }).join('');
+
+        loadIconsAsync(files.map(f => f.path));
+      }
+      } catch (e) { console.error('[LOAD] Error:', e); }
+    }
+
+    function openFileAt(idx) {
+      if (idx >= 0 && idx < filesData.length && filesData[idx]) {
+        window.zoneAPI.openFile(filesData[idx].path);
+      }
+    }
+
+    async function loadIconsAsync(filePaths) {
+      try {
+      const icons = await window.zoneAPI.getFileIcons(filePaths);
+      const grid = document.getElementById('filesGrid');
+      for (const el of grid.querySelectorAll('.file-item')) {
+        const idx = parseInt(el.getAttribute('data-idx'));
+        if (isNaN(idx) || !filesData[idx]) continue;
+        const fp = filesData[idx].path;
+        if (icons[fp]) {
+          const iconSrc = icons[fp][currentSize] || icons[fp].normal || '';
+          const imgEl = el.querySelector('.file-icon span');
+          if (imgEl && iconSrc) {
+            const img = document.createElement('img');
+            img.src = iconSrc;
+            img.draggable = false;
+            imgEl.replaceWith(img);
+          }
+          el.setAttribute('data-icons', JSON.stringify(icons[fp]));
+        }
+      }
+      } catch (e) { console.error('[ICONS] Error:', e); }
+    }
+
+    const IMAGE_EXTS = new Set(['.jpg','.jpeg','.png','.gif','.bmp','.webp','.svg','.ico','.tiff','.tif']);
+
+    async function removeFileAt(idx) {
+      if (idx < 0 || idx >= filesData.length || !filesData[idx]) return;
+      const fp = filesData[idx].path;
+      await window.zoneAPI.removeFileFromZone(fp);
+      const el = document.querySelector(`.file-item[data-idx="${idx}"]`);
+      if (el) {
+        el.style.transition = 'opacity 0.2s, transform 0.2s';
+        el.style.opacity = '0';
+        el.style.transform = 'scale(0.8)';
+        setTimeout(() => {
+          el.remove();
+          const grid = document.getElementById('filesGrid');
+          if (grid.children.length === 0) {
+            document.getElementById('dropHint').style.display = 'flex';
+          }
+        }, 200);
+      } else {
+        await loadFiles();
+      }
+    }
+
+    function addNewZone() {
+      window.zoneAPI.createZone();
+    }
+
+    async function closeZone() {
+      const count = await window.zoneAPI.getZoneCount();
+      const overlay = document.getElementById('destroyOverlay');
+      const card = overlay.querySelector('.destroy-card');
+      const icon = card.querySelector('.destroy-icon');
+      const title = card.querySelector('.destroy-title');
+      const desc = card.querySelector('.destroy-desc');
+      const btns = card.querySelector('.destroy-btns');
+
+      if (count <= 1) {
+        icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>';
+        icon.style.borderColor = 'rgba(108, 92, 231, 0.15)';
+        icon.style.background = 'rgba(108, 92, 231, 0.1)';
+        icon.querySelector('svg').style.color = 'rgba(108, 92, 231, 0.75)';
+        title.textContent = '无法销毁';
+        desc.innerHTML = '至少需要保留一个格<br>这是最后一个格，不能被销毁';
+        btns.innerHTML = '<button class="destroy-btn-cancel" style="flex:1" onclick="cancelDestroy()">我知道了</button>';
+      } else {
+        icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+        icon.style.borderColor = 'rgba(239, 68, 68, 0.12)';
+        icon.style.background = 'rgba(239, 68, 68, 0.1)';
+        icon.querySelector('svg').style.color = 'rgba(239, 68, 68, 0.75)';
+        title.textContent = '销毁此格';
+        desc.innerHTML = '该格将被永久销毁<br>格内的快捷方式将返回桌面原位置';
+        btns.innerHTML = '<button class="destroy-btn-cancel" onclick="cancelDestroy()">取消</button><button class="destroy-btn-confirm" onclick="confirmDestroy()">确认销毁</button>';
+      }
+
+      overlay.classList.add('entering');
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          overlay.classList.add('show');
+        });
+      });
+    }
+
+    function cancelDestroy() {
+      const overlay = document.getElementById('destroyOverlay');
+      overlay.classList.remove('show');
+      setTimeout(() => { overlay.classList.remove('entering'); }, 300);
+    }
+
+    async function confirmDestroy() {
+      const count = await window.zoneAPI.getZoneCount();
+      if (count <= 1) {
+        cancelDestroy();
+        return;
+      }
+
+      const overlay = document.getElementById('destroyOverlay');
+      overlay.classList.remove('show');
+      setTimeout(() => { overlay.classList.remove('entering'); }, 300);
+
+      const zone = document.getElementById('zone');
+      const rect = zone.getBoundingClientRect();
+      const w = rect.width;
+      const h = rect.height;
+
+      zone.style.overflow = 'visible';
+
+      const cols = 5;
+      const rows = 4;
+      const cellW = w / cols;
+      const cellH = h / rows;
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const shard = document.createElement('div');
+          shard.className = 'shard';
+          const sw = cellW * (0.6 + Math.random() * 0.5);
+          const sh = cellH * (0.6 + Math.random() * 0.5);
+          shard.style.width = sw + 'px';
+          shard.style.height = sh + 'px';
+          shard.style.left = (c * cellW + (cellW - sw) / 2) + 'px';
+          shard.style.top = (r * cellH + (cellH - sh) / 2) + 'px';
+          shard.style.borderRadius = (2 + Math.random() * 4) + 'px';
+
+          const cx = (c + 0.5) / cols - 0.5;
+          const cy = (r + 0.5) / rows - 0.5;
+          const dist = Math.sqrt(cx * cx + cy * cy) * 2;
+          const angle = Math.atan2(cy, cx);
+          const flyDist = 250 + dist * 350 + Math.random() * 150;
+          shard.style.setProperty('--tx', (Math.cos(angle) * flyDist) + 'px');
+          shard.style.setProperty('--ty', (Math.sin(angle) * flyDist + 80 + Math.random() * 100) + 'px');
+          shard.style.setProperty('--rot', ((Math.random() - 0.5) * 720) + 'deg');
+          shard.style.setProperty('--dur', (1.8 + Math.random() * 0.8) + 's');
+          shard.style.setProperty('--delay', (dist * 0.06 + Math.random() * 0.06) + 's');
+          zone.appendChild(shard);
+        }
+      }
+
+      zone.classList.add('destroying');
+
+      await new Promise(r => setTimeout(r, 3000));
+
+      if (zoneData) {
+        const result = await window.zoneAPI.deleteZone(zoneData.id);
+        if (!result.success) {
+          zone.classList.remove('destroying');
+          zone.querySelectorAll('.shard').forEach(s => s.remove());
+          zone.style.overflow = 'hidden';
+        }
+      }
+    }
+
+    function applyLockState(locked) {
+      const zone = document.getElementById('zone');
+      const lockBtn = document.getElementById('lockBtn');
+      if (locked) {
+        zone.classList.add('locked-mode');
+        lockBtn.classList.add('locked');
+        lockBtn.textContent = '🔒';
+        lockBtn.title = '解锁';
+      } else {
+        zone.classList.remove('locked-mode');
+        lockBtn.classList.remove('locked');
+        lockBtn.textContent = '🔓';
+        lockBtn.title = '锁定';
+      }
+    }
+
+    async function toggleLock() {
+      if (!zoneData) return;
+      const newLocked = !zoneData.locked;
+      zoneData.locked = newLocked;
+      applyLockState(newLocked);
+      await window.zoneAPI.updateZoneLock(zoneData.id, newLocked);
+    }
+
+    function toggleColorPalette() {
+      const p = document.getElementById('colorPalette');
+      const btn = document.getElementById('colorBtn');
+      if (zoneData && zoneData.locked) return;
+      const rect = btn.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const palW = 210;
+      const palH = 180;
+      let left = rect.right - palW;
+      let top = rect.top - palH - 6;
+      if (top < 4) top = rect.bottom + 6;
+      if (left < 4) left = 4;
+      if (left + palW > vw - 4) left = vw - palW - 4;
+      if (top + palH > vh - 4) top = vh - palH - 4;
+      p.style.left = left + 'px';
+      p.style.top = top + 'px';
+      p.classList.toggle('show');
+      if (p.classList.contains('show')) {
+        buildPalette();
+      }
+    }
+
+    let opacityPopupTimer = null;
+    function toggleOpacityPopup(e) {
+      if (zoneData && zoneData.locked) return;
+      const p = document.getElementById('opacityPopup');
+      const btn = document.getElementById('opacityBtn');
+      const rect = btn.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const popW = 220;
+      const popH = 70;
+      let left = rect.right - popW;
+      let top = rect.top - popH - 6;
+      if (top < 4) top = rect.bottom + 6;
+      if (left < 4) left = 4;
+      if (left + popW > vw - 4) left = vw - popW - 4;
+      if (top + popH > vh - 4) top = vh - popH - 4;
+      p.style.left = left + 'px';
+      p.style.top = top + 'px';
+      p.classList.toggle('show');
+      if (p.classList.contains('show')) {
+        const op = zoneData ? (zoneData.opacity || 100) : 100;
+        document.getElementById('opacitySlider').value = op;
+        document.getElementById('opacityValue').textContent = op + '%';
+      }
+    }
+
+    function onOpacityChange(val) {
+      const opacity = parseInt(val) / 100;
+      window.zoneAPI.setZoneOpacity(zoneData.id, parseInt(val));
+      document.getElementById('opacityValue').textContent = val + '%';
+    }
+
+    async function buildPalette() {
+      if (!allThemes || Object.keys(allThemes).length === 0) {
+        allThemes = await window.zoneAPI.getZoneColors();
+      }
+      currentTheme = (zoneData && zoneData.theme) || 'nordic';
+      renderThemeName();
+      renderSwatches();
+    }
+
+    function renderThemeName() {
+      const nameEl = document.getElementById('themeName');
+      const t = allThemes[currentTheme];
+      nameEl.textContent = t ? (t.icon + ' ' + t.name) : currentTheme;
+    }
+
+    function renderSwatches() {
+      const currentColor = zoneData ? zoneData.color : '#6c5ce7';
+      const swatchesEl = document.getElementById('colorSwatches');
+      swatchesEl.innerHTML = '';
+      const colors = allThemes[currentTheme]?.colors || [];
+      colors.forEach(c => {
+        const sw = document.createElement('div');
+        sw.className = 'color-swatch';
+        if (c === currentColor) sw.classList.add('active');
+        sw.style.background = c;
+        sw.style.color = c;
+        sw.title = c;
+        sw.onclick = (e) => { e.stopPropagation(); changeColor(c); };
+        swatchesEl.appendChild(sw);
+      });
+    }
+
+    function getThemeKeys() { return Object.keys(allThemes); }
+
+    async function switchTheme(themeKey) {
+      currentTheme = themeKey;
+      if (zoneData) {
+        zoneData.theme = themeKey;
+        await window.zoneAPI.updateZoneTheme(zoneData.id, themeKey);
+      }
+      renderThemeName();
+      renderSwatches();
+    }
+
+    function prevTheme() {
+      const keys = getThemeKeys();
+      const idx = keys.indexOf(currentTheme);
+      switchTheme(keys[(idx - 1 + keys.length) % keys.length]);
+    }
+
+    function nextTheme() {
+      const keys = getThemeKeys();
+      const idx = keys.indexOf(currentTheme);
+      switchTheme(keys[(idx + 1) % keys.length]);
+    }
+
+    async function changeColor(color) {
+      if (!zoneData) return;
+      await window.zoneAPI.updateZoneColor(zoneData.id, color);
+      zoneData.color = color;
+      document.documentElement.style.setProperty('--zone-color', color);
+      document.documentElement.style.setProperty('--zone-color-rgb', hexToRgb(color));
+      document.getElementById('colorBtn').style.background = color;
+      document.getElementById('colorBtn').style.boxShadow = `0 0 6px ${color}4d`;
+      document.getElementById('colorPalette').classList.remove('show');
+      buildPalette();
+    }
+
+    document.addEventListener('click', (e) => {
+      const palette = document.getElementById('colorPalette');
+      const btn = document.getElementById('colorBtn');
+      if (palette.classList.contains('show') && !palette.contains(e.target) && e.target !== btn) {
+        palette.classList.remove('show');
+      }
+      const opacityPopup = document.getElementById('opacityPopup');
+      const opacityBtn = document.getElementById('opacityBtn');
+      if (opacityPopup.classList.contains('show') && !opacityPopup.contains(e.target) && e.target !== opacityBtn) {
+        opacityPopup.classList.remove('show');
+      }
+    });
+
+    document.getElementById('themeCarousel').addEventListener('wheel', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.deltaY > 0 || e.deltaX > 0) nextTheme();
+      else if (e.deltaY < 0 || e.deltaX < 0) prevTheme();
+    }, { passive: false });
+
+    const zoneHeader = document.getElementById('zoneHeader');
+    const progressRing = document.getElementById('progressRing');
+    const progressCircle = document.getElementById('progressCircle');
+    const circumference = 2 * Math.PI * 9;
+
+    zoneHeader.addEventListener('mousedown', (e) => {
+      if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return;
+      if (zoneData && zoneData.locked) return;
+      longPressStart = Date.now();
+      progressCircle.style.strokeDashoffset = circumference;
+      progressRing.classList.add('show');
+
+      function tick() {
+        if (!progressRing.classList.contains('show')) return;
+        const elapsed = Date.now() - longPressStart;
+        const progress = Math.min(elapsed / LONG_PRESS_MS, 1);
+        progressCircle.style.strokeDashoffset = circumference * (1 - progress);
+        if (progress >= 1) {
+          progressRing.classList.remove('show');
+          document.getElementById('deleteHint').classList.add('show');
+        } else {
+          longPressProgressTimer = requestAnimationFrame(tick);
+        }
+      }
+      longPressProgressTimer = requestAnimationFrame(tick);
+    });
+
+    zoneHeader.addEventListener('mouseup', () => {
+      cancelAnimationFrame(longPressProgressTimer);
+      progressRing.classList.remove('show');
+    });
+
+    zoneHeader.addEventListener('mouseleave', () => {
+      cancelAnimationFrame(longPressProgressTimer);
+      progressRing.classList.remove('show');
+    });
+
+    async function confirmDelete() {
+      const count = await window.zoneAPI.getZoneCount();
+      if (count <= 1) return;
+      document.getElementById('deleteHint').classList.remove('show');
+      const zone = document.getElementById('zone');
+      zone.style.transition = 'transform 0.4s ease, opacity 0.4s ease, filter 0.4s ease';
+      zone.style.transform = 'scale(0.8)';
+      zone.style.opacity = '0';
+      zone.style.filter = 'blur(8px)';
+      await new Promise(r => setTimeout(r, 400));
+      if (zoneData) {
+        const result = await window.zoneAPI.deleteZone(zoneData.id);
+        if (!result.success) {
+          zone.style.transition = 'transform 0.3s ease, opacity 0.3s ease, filter 0.3s ease';
+          zone.style.transform = 'scale(1)';
+          zone.style.opacity = '1';
+          zone.style.filter = 'blur(0)';
+        }
+      }
+    }
+
+    function cancelDelete() {
+      document.getElementById('deleteHint').classList.remove('show');
+    }
+
+    const nameEl = document.getElementById('zoneName');
+    const nameInput = document.getElementById('zoneNameInput');
+
+    nameEl.addEventListener('dblclick', () => {
+      if (zoneData && zoneData.locked) return;
+      nameEl.style.display = 'none';
+      nameInput.style.display = 'block';
+      nameInput.value = zoneData.name;
+      nameInput.focus();
+      nameInput.select();
+    });
+
+    nameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') finishRename();
+      if (e.key === 'Escape') cancelRename();
+    });
+    nameInput.addEventListener('blur', finishRename);
+
+    async function finishRename() {
+      const newName = nameInput.value.trim();
+      if (!zoneData) { nameInput.style.display = 'none'; nameEl.style.display = 'block'; return; }
+      if (newName && newName !== zoneData.name) {
+        const r = await window.zoneAPI.renameZone(zoneData.id, newName);
+        if (r.success) {
+          zoneData.name = newName;
+          nameEl.textContent = newName;
+        }
+      }
+      nameInput.style.display = 'none';
+      nameEl.style.display = 'block';
+    }
+    function cancelRename() {
+      nameInput.style.display = 'none';
+      nameEl.style.display = 'block';
+    }
+
+    const zoneEl = document.getElementById('zone');
+    document.addEventListener('dragover', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      zoneEl.classList.add('drag-over');
+    });
+    document.addEventListener('dragleave', (e) => {
+      if (!e.relatedTarget || e.relatedTarget === document.documentElement) {
+        zoneEl.classList.remove('drag-over');
+      }
+    });
+    document.addEventListener('drop', async (e) => {
+      try {
+      e.preventDefault(); e.stopPropagation();
+      zoneEl.classList.remove('drag-over');
+      if (!zoneData) return;
+      const paths = [];
+      if (e.dataTransfer.files) {
+        for (const f of e.dataTransfer.files) { if (f.path) paths.push(f.path); }
+      }
+      if (paths.length > 0) {
+        const imagePaths = [];
+        const otherPaths = [];
+        for (const p of paths) {
+          const dotIdx = p.lastIndexOf('.');
+          const ext = dotIdx >= 0 ? p.substring(dotIdx).toLowerCase() : '';
+          if (IMAGE_EXTS.has(ext)) imagePaths.push(p);
+          else otherPaths.push(p);
+        }
+        if (imagePaths.length > 0 && !zoneData.bgImage) {
+          const result = await window.zoneAPI.addZoneBgImage(zoneData.id, imagePaths[0]);
+          if (result.success) {
+            zoneData.bgImage = result.path;
+            applyBgImage(result.path);
+          }
+          if (imagePaths.length > 1) otherPaths.push(...imagePaths.slice(1));
+        } else {
+          otherPaths.push(...imagePaths);
+        }
+        if (otherPaths.length > 0) {
+          await window.zoneAPI.dropFilesOnZone(zoneData.id, otherPaths);
+        }
+
+        zoneEl.classList.add('swallowing');
+        zoneEl.addEventListener('animationend', function handler() {
+          zoneEl.classList.remove('swallowing');
+          zoneEl.removeEventListener('animationend', handler);
+        });
+
+        await loadFiles();
+      }
+      } catch (e) { console.error('[DROP-UI] Error:', e); }
+    });
+
+    document.querySelectorAll('.resize-handle').forEach(h => {
+      h.addEventListener('mousedown', (e) => {
+        if (zoneData && zoneData.locked) return;
+        e.preventDefault(); e.stopPropagation();
+        isResizing = true;
+        resizeDir = h.dataset.dir;
+        resizeStart = { x: e.screenX, y: e.screenY };
+        resizeStartBounds = { ...zoneData.bounds };
+      });
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!isResizing || !zoneData) return;
+      const dx = e.screenX - resizeStart.x;
+      const dy = e.screenY - resizeStart.y;
+      const b = { ...resizeStartBounds };
+      if (resizeDir.includes('e')) b.width = Math.max(240, b.width + dx);
+      if (resizeDir.includes('w')) { b.width = Math.max(240, b.width - dx); b.x += dx; }
+      if (resizeDir.includes('s')) b.height = Math.max(200, b.height + dy);
+      if (resizeDir.includes('n')) { b.height = Math.max(200, b.height - dy); b.y += dy; }
+      if (b.width >= 240 && b.height >= 200) {
+        zoneData.bounds = b;
+        if (!resizeDirty) {
+          resizeDirty = true;
+          resizeRafId = requestAnimationFrame(() => {
+            window.zoneAPI.updateZoneBounds(zoneData.id, zoneData.bounds);
+            resizeDirty = false;
+          });
+        }
+      }
+    });
+    document.addEventListener('mouseup', () => {
+      if (isResizing && zoneData) {
+        window.zoneAPI.updateZoneBounds(zoneData.id, zoneData.bounds);
+      }
+      isResizing = false;
+      if (resizeRafId) { cancelAnimationFrame(resizeRafId); resizeRafId = null; }
+      resizeDirty = false;
+    });
+
+    function showCtx(e, idx) {
+      e.preventDefault(); e.stopPropagation();
+      if (idx < 0 || idx >= filesData.length) return;
+      ctxFileIdx = idx;
+      const menu = document.getElementById('contextMenu');
+      const removeImgItem = document.getElementById('ctxRemoveImg');
+      removeImgItem.style.display = (zoneData && zoneData.bgImage) ? 'flex' : 'none';
+      menu.style.left = e.clientX + 'px';
+      menu.style.top = e.clientY + 'px';
+      menu.classList.add('show');
+    }
+    document.addEventListener('click', () => {
+      document.getElementById('contextMenu').classList.remove('show');
+    });
+    function ctxOpen() {
+      if (ctxFileIdx >= 0 && ctxFileIdx < filesData.length && filesData[ctxFileIdx]) {
+        window.zoneAPI.openFile(filesData[ctxFileIdx].path);
+      }
+    }
+    function ctxOpenFolder() {
+      if (ctxFileIdx >= 0 && ctxFileIdx < filesData.length && filesData[ctxFileIdx]) {
+        window.zoneAPI.showItemInFolder(filesData[ctxFileIdx].path);
+      }
+    }
+    async function ctxRemove() {
+      if (ctxFileIdx >= 0) { await removeFileAt(ctxFileIdx); ctxFileIdx = -1; }
+    }
+
+    async function ctxRemoveImage() {
+      if (!zoneData || !zoneData.bgImage) return;
+      await window.zoneAPI.removeZoneBgImage(zoneData.id);
+      delete zoneData.bgImage;
+      applyBgImage(null);
+      document.getElementById('contextMenu').classList.remove('show');
+    }
+
+    let fileLPTimer = null;
+    let fileLPRafId = null;
+    let fileLPStart = 0;
+    let fileLPTarget = null;
+    const FILE_LP_MS = 1500;
+    const lpCircumference = 2 * Math.PI * 50;
+
+    document.addEventListener('mousedown', (e) => {
+      const item = e.target.closest('.file-item');
+      if (!item) return;
+      if (e.target.closest('.file-remove')) return;
+      const ring = item.querySelector('.file-long-press-ring');
+      const fg = ring ? ring.querySelector('.lp-fg') : null;
+      if (!ring || !fg) return;
+
+      fileLPTarget = item;
+      fileLPStart = Date.now();
+      fg.style.strokeDashoffset = lpCircumference;
+      ring.classList.add('show');
+
+      function tick() {
+        if (!ring.classList.contains('show')) return;
+        const elapsed = Date.now() - fileLPStart;
+        const progress = Math.min(elapsed / FILE_LP_MS, 1);
+        fg.style.strokeDashoffset = lpCircumference * (1 - progress);
+        if (progress >= 1) {
+          ring.classList.remove('show');
+          const removeBtn = item.querySelector('.file-remove');
+          if (removeBtn) removeBtn.classList.add('visible');
+          fileLPTimer = setTimeout(() => {
+            if (removeBtn) removeBtn.classList.remove('visible');
+          }, 3000);
+        } else {
+          fileLPRafId = requestAnimationFrame(tick);
+        }
+      }
+      fileLPRafId = requestAnimationFrame(tick);
+    });
+
+    document.addEventListener('mouseup', () => {
+      cancelAnimationFrame(fileLPRafId);
+      if (fileLPTarget) {
+        const ring = fileLPTarget.querySelector('.file-long-press-ring');
+        if (ring) ring.classList.remove('show');
+      }
+      fileLPTarget = null;
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!fileLPTarget) return;
+      const rect = fileLPTarget.getBoundingClientRect();
+      if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
+        cancelAnimationFrame(fileLPRafId);
+        const ring = fileLPTarget.querySelector('.file-long-press-ring');
+        if (ring) ring.classList.remove('show');
+        fileLPTarget = null;
+      }
+    });
+
+    window.zoneAPI.onZoneInit((data) => { applyZone(data, true); });
+    window.zoneAPI.onZoneRefresh((data) => { applyZone(data, false); });
+    window.zoneAPI.onZoneBoundsUpdated((bounds) => { if (zoneData) zoneData.bounds = bounds; });
+  </script>
+</body>
+</html>

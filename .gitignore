@@ -1,0 +1,12 @@
+node_modules/
+dist/
+dist-v3/
+dist-v4/
+backup-v1/
+win-unpacked/
+.trae/
+skills/
+src-tauri/target/
+src-tauri/gen/
+*.log
+*.pdb

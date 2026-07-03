@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>桌面分区管理器</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg-primary: #0f0f14;
+      --bg-secondary: #1a1a24;
+      --bg-tertiary: #24243a;
+      --bg-hover: #2e2e48;
+      --text-primary: #e8e8f0;
+      --text-secondary: #9898b0;
+      --text-muted: #606078;
+      --accent: #6c5ce7;
+      --accent-hover: #7d6ff0;
+      --accent-glow: rgba(108, 92, 231, 0.3);
+      --danger: #e74c3c;
+      --danger-hover: #c0392b;
+      --success: #2ecc71;
+      --border: rgba(255, 255, 255, 0.06);
+      --radius: 12px;
+      --radius-sm: 8px;
+      --transition: all 0.2s ease;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      height: 100vh;
+      overflow: hidden;
+      user-select: none;
+    }
+    .app { display: flex; height: 100vh; }
+
+    .sidebar {
+      width: 270px;
+      min-width: 270px;
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+    }
+    .sidebar-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,0.01);
+    }
+    .sidebar-header h1 {
+      font-size: 17px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .sidebar-header h1 .logo {
+      width: 30px; height: 30px;
+      background: linear-gradient(135deg, var(--accent), #a29bfe);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px;
+    }
+    .sidebar-actions {
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .btn {
+      padding: 9px 14px;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: var(--transition);
+      outline: none;
+    }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-primary:hover { background: var(--accent-hover); box-shadow: 0 4px 16px var(--accent-glow); }
+    .btn-secondary { background: var(--bg-tertiary); color: var(--text-primary); }
+    .btn-secondary:hover { background: var(--bg-hover); }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-danger:hover { background: var(--danger-hover); }
+    .btn-sm { padding: 6px 10px; font-size: 12px; }
+    .btn-icon {
+      width: 28px; height: 28px; padding: 0;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 6px; background: transparent;
+      color: var(--text-secondary); border: none; cursor: pointer;
+      transition: var(--transition); font-size: 13px;
+    }
+    .btn-icon:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+    .zone-list { flex: 1; overflow-y: auto; padding: 6px 10px; }
+    .zone-list::-webkit-scrollbar { width: 4px; }
+    .zone-list::-webkit-scrollbar-thumb { background: var(--bg-tertiary); border-radius: 2px; }
+
+    .zone-item {
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 2px;
+    }
+    .zone-item:hover { background: var(--bg-tertiary); }
+    .zone-item.active { background: var(--accent); color: white; }
+    .zone-item.active .zone-count { color: rgba(255,255,255,0.7); }
+    .zone-item .zone-icon {
+      width: 34px; height: 34px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; flex-shrink: 0;
+    }
+    .zone-item .zone-info { flex: 1; min-width: 0; }
+    .zone-item .zone-name {
+      font-size: 13px; font-weight: 600;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .zone-item .zone-count { font-size: 11px; color: var(--text-secondary); margin-top: 1px; }
+    .zone-item .zone-actions { display: none; gap: 2px; }
+    .zone-item:hover .zone-actions { display: flex; }
+    .zone-item:hover .zone-count-wrap { display: none; }
+
+    .sidebar-footer {
+      padding: 10px 16px;
+      border-top: 1px solid var(--border);
+      display: flex; gap: 16px;
+      font-size: 11px; color: var(--text-muted);
+    }
+    .sidebar-footer .stat-val { color: var(--text-secondary); font-weight: 600; }
+
+    .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .main-header {
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      background: linear-gradient(180deg, var(--bg-secondary) 0%, rgba(26, 26, 36, 0.95) 100%);
+    }
+    .main-header .header-left { display: flex; align-items: center; gap: 12px; }
+    .main-header .header-title { font-size: 20px; font-weight: 700; }
+    .main-header .header-subtitle { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+    .main-header .header-right { display: flex; align-items: center; gap: 8px; }
+
+    .overlay-toggle {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 12px; border-radius: 20px;
+      background: var(--bg-tertiary); cursor: pointer;
+      transition: var(--transition); font-size: 12px; color: var(--text-secondary);
+    }
+    .overlay-toggle.active { background: var(--accent); color: white; }
+    .overlay-toggle .toggle-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--text-muted); transition: var(--transition);
+    }
+    .overlay-toggle.active .toggle-dot { background: white; }
+
+    .search-box {
+      display: flex; align-items: center;
+      background: var(--bg-tertiary); border-radius: var(--radius-sm);
+      padding: 0 12px; gap: 8px;
+      border: 1px solid transparent; transition: var(--transition);
+    }
+    .search-box:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+      background: rgba(36, 36, 58, 0.9);
+    }
+    .search-box input {
+      background: none; border: none; color: var(--text-primary);
+      padding: 7px 0; font-size: 13px; outline: none; width: 180px;
+    }
+    .search-box input::placeholder { color: var(--text-muted); }
+
+    .main-body { flex: 1; overflow-y: auto; padding: 24px; }
+    .main-body::-webkit-scrollbar { width: 6px; }
+    .main-body::-webkit-scrollbar-thumb { background: var(--bg-tertiary); border-radius: 3px; }
+
+    .section-title {
+      font-size: 13px; font-weight: 600; color: var(--text-secondary);
+      margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+    }
+    .section-title .badge {
+      background: var(--bg-tertiary); padding: 2px 8px;
+      border-radius: 10px; font-size: 11px; color: var(--text-muted);
+    }
+
+    .files-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+      gap: 6px;
+    }
+    .file-card {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 12px 8px; border-radius: var(--radius-sm);
+      cursor: grab; transition: var(--transition);
+      border: 1px solid transparent; position: relative;
+    }
+    .file-card:hover {
+      background: var(--bg-tertiary);
+      border-color: rgba(255,255,255,0.04);
+      transform: translateY(-1px);
+    }
+    .file-card.dragging { opacity: 0.4; border-color: var(--accent); }
+    .file-card .file-icon {
+      width: 44px; height: 44px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 30px; margin-bottom: 4px;
+    }
+    .file-card .file-name {
+      font-size: 10px; text-align: center; word-break: break-all;
+      line-height: 1.3; max-height: 2.6em; overflow: hidden;
+      color: var(--text-primary); width: 100%;
+    }
+
+    .zone-detail { display: none; }
+    .zone-detail.active { display: block; }
+    .zone-detail-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .zone-detail-header .zone-title-section { display: flex; align-items: center; gap: 12px; }
+    .zone-detail-header .zone-big-icon {
+      width: 48px; height: 48px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center; font-size: 24px;
+    }
+    .zone-detail-header .zone-title-text h2 { font-size: 22px; font-weight: 700; }
+    .zone-detail-header .zone-title-text p { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+    .zone-detail-header .zone-actions-bar { display: flex; gap: 8px; }
+
+    .zone-drop-area {
+      min-height: 250px;
+      border: 2px dashed rgba(255,255,255,0.06);
+      border-radius: var(--radius);
+      padding: 16px;
+      transition: var(--transition);
+      position: relative;
+    }
+    .zone-drop-area.drag-over {
+      border-color: var(--accent);
+      background: rgba(108, 92, 231, 0.06);
+    }
+    .zone-drop-area .drop-hint {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      color: var(--text-muted); font-size: 13px;
+      pointer-events: none;
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+    }
+    .zone-drop-area .drop-hint .drop-icon { font-size: 36px; opacity: 0.3; }
+
+    .zone-file-card {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 12px 8px; border-radius: var(--radius-sm);
+      cursor: pointer; transition: var(--transition);
+      border: 1px solid transparent; position: relative;
+    }
+    .zone-file-card:hover {
+      background: var(--bg-tertiary);
+      border-color: rgba(255,255,255,0.04);
+      transform: translateY(-1px);
+    }
+    .zone-file-card:hover .file-remove-btn { display: flex; }
+    .zone-file-card .file-icon {
+      width: 44px; height: 44px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 30px; margin-bottom: 4px;
+    }
+    .zone-file-card .file-name {
+      font-size: 10px; text-align: center; word-break: break-all;
+      line-height: 1.3; max-height: 2.6em; overflow: hidden;
+      color: var(--text-primary); width: 100%;
+    }
+    .zone-file-card .file-remove-btn {
+      position: absolute; top: 2px; right: 2px;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: var(--danger); color: white;
+      border: none; cursor: pointer; font-size: 9px;
+      display: none; align-items: center; justify-content: center;
+    }
+
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; height: 100%;
+      color: var(--text-muted); gap: 14px;
+    }
+    .empty-state .empty-icon { font-size: 56px; opacity: 0.4; }
+    .empty-state .empty-text { font-size: 15px; font-weight: 500; }
+    .empty-state .empty-hint { font-size: 12px; }
+
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+      display: none; align-items: center; justify-content: center; z-index: 1000;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      background: var(--bg-secondary); border-radius: var(--radius);
+      padding: 28px; width: 420px; max-width: 90%;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+    }
+    .modal h3 { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+    .modal .form-group { margin-bottom: 14px; }
+    .modal label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 5px; font-weight: 500; }
+    .modal input[type="text"] {
+      width: 100%; padding: 9px 12px;
+      background: var(--bg-tertiary); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); color: var(--text-primary);
+      font-size: 14px; outline: none; transition: var(--transition);
+    }
+    .modal input[type="text"]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+    .modal .icon-picker { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
+    .modal .icon-picker .icon-option {
+      width: 36px; height: 36px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 8px; cursor: pointer; font-size: 17px;
+      transition: var(--transition); border: 2px solid transparent;
+    }
+    .modal .icon-picker .icon-option:hover { background: var(--bg-hover); }
+    .modal .icon-picker .icon-option.selected { border-color: var(--accent); background: var(--accent-glow); }
+    .modal .color-picker { display: flex; gap: 6px; flex-wrap: wrap; }
+    .modal .color-picker .color-option {
+      width: 30px; height: 30px; border-radius: 50%;
+      cursor: pointer; transition: var(--transition);
+      border: 3px solid transparent;
+    }
+    .modal .color-picker .color-option:hover { transform: scale(1.15); }
+    .modal .color-picker .color-option.selected { border-color: white; box-shadow: 0 0 0 2px var(--accent); }
+    .modal .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+
+    .toast-container {
+      position: fixed; top: 16px; right: 16px; z-index: 2000;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .toast {
+      padding: 10px 18px; border-radius: var(--radius-sm);
+      font-size: 12px; font-weight: 500;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+      animation: slideIn 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), fadeOut 0.3s ease 2.7s;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .toast.success { background: var(--success); color: white; }
+    .toast.error { background: var(--danger); color: white; }
+    .toast.info { background: var(--accent); color: white; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1><span class="logo">📋</span>桌面分区管理器</h1>
+      </div>
+      <div class="sidebar-actions">
+        <button class="btn btn-primary" onclick="showCreateZoneModal()" style="width:100%">➕ 创建分区</button>
+        <button class="btn btn-secondary" onclick="refreshAll()" style="width:100%">🔄 刷新</button>
+      </div>
+      <div class="zone-list" id="zoneList"></div>
+      <div class="sidebar-footer">
+        <span>分区: <span class="stat-val" id="zoneCountStat">0</span></span>
+        <span>文件: <span class="stat-val" id="fileCountStat">0</span></span>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <div class="main-header">
+        <div class="header-left">
+          <div>
+            <div class="header-title" id="mainTitle">桌面全部</div>
+            <div class="header-subtitle" id="mainSubtitle">拖拽文件到左侧分区或桌面分区框进行归类</div>
+          </div>
+        </div>
+        <div class="header-right">
+          <div class="overlay-toggle" id="overlayToggle" onclick="toggleOverlays()">
+            <div class="toggle-dot"></div>
+            <span>桌面分区</span>
+          </div>
+          <div class="search-box">
+            <span>🔍</span>
+            <input type="text" placeholder="搜索文件..." id="searchInput" oninput="handleSearch()">
+          </div>
+        </div>
+      </div>
+
+      <div class="main-body" id="mainBody">
+        <div id="desktopView">
+          <div class="section-title">
+            桌面文件
+            <span class="badge" id="desktopBadge">0</span>
+          </div>
+          <div class="files-grid" id="desktopFilesGrid"></div>
+        </div>
+
+        <div class="zone-detail" id="zoneDetail">
+          <div class="zone-detail-header">
+            <div class="zone-title-section">
+              <div class="zone-big-icon" id="zoneBigIcon">📁</div>
+              <div class="zone-title-text">
+                <h2 id="zoneDetailTitle">分区</h2>
+                <p id="zoneDetailSubtitle">0 个文件</p>
+              </div>
+            </div>
+            <div class="zone-actions-bar">
+              <button class="btn btn-secondary btn-sm" onclick="openZoneFolder()">📂 打开文件夹</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteCurrentZone()">🗑️ 删除分区</button>
+            </div>
+          </div>
+          <div class="zone-drop-area" id="zoneDropArea">
+            <div class="drop-hint" id="dropHint">
+              <div class="drop-icon">📥</div>
+              拖拽桌面文件到此处
+            </div>
+            <div class="files-grid" id="zoneFilesGrid"></div>
+          </div>
+        </div>
+
+        <div class="empty-state" id="emptyState" style="display:none;">
+          <div class="empty-icon">📭</div>
+          <div class="empty-text">暂无文件</div>
+          <div class="empty-hint">桌面上没有找到快捷方式或文件</div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-overlay" id="createZoneModal">
+    <div class="modal">
+      <h3>创建新分区</h3>
+      <div class="form-group">
+        <label>分区名称</label>
+        <input type="text" id="zoneNameInput" placeholder="例如：常用软件、游戏、工作..." maxlength="30">
+      </div>
+      <div class="form-group">
+        <label>分区图标</label>
+        <div class="icon-picker" id="iconPicker"></div>
+      </div>
+      <div class="form-group">
+        <label>分区颜色</label>
+        <div class="color-picker" id="colorPicker"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="hideCreateZoneModal()">取消</button>
+        <button class="btn btn-primary" onclick="createZone()">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="renameZoneModal">
+    <div class="modal">
+      <h3>重命名分区</h3>
+      <div class="form-group">
+        <label>新名称</label>
+        <input type="text" id="renameZoneInput" placeholder="输入新名称..." maxlength="30">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="hideRenameZoneModal()">取消</button>
+        <button class="btn btn-primary" onclick="confirmRenameZone()">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script>
+    const ICONS = ['📁','🎮','💼','🎵','📷','🎬','📚','🔧','🌐','🎨','📊','📝','🏠','⚡','🎯','🔒','💡','🚀','⭐','🔔','💎','🌈','🔥','❤️'];
+    const COLORS = ['#6c5ce7','#0984e3','#00b894','#fdcb6e','#e17055','#d63031','#e84393','#636e72','#2d3436','#00cec9','#55efc4','#fab1a0'];
+
+    let appData = { zones: [], settings: { showOverlays: true } };
+    let desktopFiles = [];
+    let currentZoneId = null;
+    let selectedIcon = '📁';
+    let selectedColor = '#6c5ce7';
+    let renameZoneId = null;
+    let draggedFile = null;
+
+    function getFileIcon(file) {
+      if (file.isDirectory) return '📁';
+      const ext = file.ext.toLowerCase();
+      if (ext === '.lnk') return '🚀';
+      const m = {'.exe':'⚙️','.url':'🌐','.txt':'📄','.doc':'📝','.docx':'📝','.xls':'📊','.xlsx':'📊','.ppt':'📊','.pptx':'📊','.pdf':'📕','.jpg':'🖼️','.jpeg':'🖼️','.png':'🖼️','.gif':'🖼️','.mp3':'🎵','.wav':'🎵','.mp4':'🎬','.avi':'🎬','.zip':'📦','.rar':'📦','.7z':'📦','.js':'💻','.py':'💻','.html':'💻'};
+      return m[ext] || '📄';
+    }
+
+    async function init() {
+      appData = await window.desktopAPI.loadData();
+      if (!appData.zones) appData.zones = [];
+      if (!appData.settings) appData.settings = { showOverlays: true };
+
+      initIconPicker();
+      initColorPicker();
+      await refreshDesktop();
+
+      setupDragDrop();
+      setupEventListeners();
+    }
+
+    function initIconPicker() {
+      document.getElementById('iconPicker').innerHTML = ICONS.map(icon =>
+        `<div class="icon-option ${icon === selectedIcon ? 'selected' : ''}" onclick="selectIcon(this,'${icon}')">${icon}</div>`
+      ).join('');
+    }
+    function initColorPicker() {
+      document.getElementById('colorPicker').innerHTML = COLORS.map(color =>
+        `<div class="color-option ${color === selectedColor ? 'selected' : ''}" style="background:${color}" onclick="selectColor(this,'${color}')"></div>`
+      ).join('');
+    }
+    function selectIcon(el, icon) {
+      document.querySelectorAll('.icon-option').forEach(e => e.classList.remove('selected'));
+      el.classList.add('selected'); selectedIcon = icon;
+    }
+    function selectColor(el, color) {
+      document.querySelectorAll('.color-option').forEach(e => e.classList.remove('selected'));
+      el.classList.add('selected'); selectedColor = color;
+    }
+
+    function setupEventListeners() {
+      window.desktopAPI.onZoneUpdated(async (zone) => {
+        const idx = appData.zones.findIndex(z => z.id === zone.id);
+        if (idx >= 0) appData.zones[idx] = zone;
+        renderZoneList();
+      });
+      window.desktopAPI.onOverlayToggled((show) => {
+        updateOverlayToggle(show);
+      });
+      window.desktopAPI.onFocusZone((zoneId) => {
+        const zone = appData.zones.find(z => z.id === zoneId);
+        if (zone) showZoneDetail(zone);
+      });
+      window.desktopAPI.onFilesMovedToZone(async (data) => {
+        await refreshDesktop();
+        if (currentZoneId === data.zoneId) {
+          const zone = appData.zones.find(z => z.id === data.zoneId);
+          if (zone) await showZoneDetail(zone);
+        }
+      });
+      window.desktopAPI.onRefreshNeeded(async () => {
+        await refreshDesktop();
+      });
+    }
+
+    async function refreshDesktop() {
+      desktopFiles = await window.desktopAPI.readDesktopFiles();
+      const overlayState = await window.desktopAPI.getOverlayState();
+      updateOverlayToggle(overlayState);
+
+      for (const zone of appData.zones) {
+        const files = await window.desktopAPI.readZoneFiles(zone.name);
+        zone.fileCount = files.length;
+      }
+
+      renderZoneList();
+      if (currentZoneId) {
+        const zone = appData.zones.find(z => z.id === currentZoneId);
+        if (zone) await showZoneDetail(zone);
+        else showDesktopView();
+      } else {
+        renderDesktopFiles();
+      }
+      updateStats();
+    }
+
+    async function refreshAll() {
+      await window.desktopAPI.refreshAll();
+      await refreshDesktop();
+      showToast('已刷新', 'success');
+    }
+
+    function updateStats() {
+      document.getElementById('zoneCountStat').textContent = appData.zones.length;
+      document.getElementById('fileCountStat').textContent = desktopFiles.length;
+    }
+
+    function updateOverlayToggle(show) {
+      const el = document.getElementById('overlayToggle');
+      if (show) el.classList.add('active');
+      else el.classList.remove('active');
+    }
+
+    async function toggleOverlays() {
+      const state = await window.desktopAPI.getOverlayState();
+      await window.desktopAPI.toggleOverlays(!state);
+      updateOverlayToggle(!state);
+    }
+
+    function renderZoneList() {
+      const list = document.getElementById('zoneList');
+      const desktopItem = `
+        <div class="zone-item ${!currentZoneId ? 'active' : ''}" onclick="showDesktopView()">
+          <div class="zone-icon" style="background:rgba(108,92,231,0.15)">🖥️</div>
+          <div class="zone-info">
+            <div class="zone-name">桌面全部</div>
+            <div class="zone-count-wrap"><span class="zone-count">${desktopFiles.length} 个文件</span></div>
+          </div>
+        </div>`;
+
+      const zoneItems = appData.zones.map((zone, i) => `
+        <div class="zone-item ${currentZoneId === zone.id ? 'active' : ''}"
+             onclick="showZoneDetail(appData.zones[${i}])"
+             ondragover="event.preventDefault();this.style.background='var(--accent-glow)'"
+             ondragleave="this.style.background=''"
+             ondrop="handleDropOnSidebarZone(event,'${zone.id}');this.style.background=''">
+          <div class="zone-icon" style="background:${zone.color}22">${zone.icon}</div>
+          <div class="zone-info">
+            <div class="zone-name">${zone.name}</div>
+            <div class="zone-count-wrap"><span class="zone-count">${zone.fileCount || 0} 个文件</span></div>
+            <div class="zone-actions">
+              <button class="btn-icon" onclick="event.stopPropagation();showRenameZoneModal('${zone.id}')" title="重命名">✏️</button>
+              <button class="btn-icon" onclick="event.stopPropagation();deleteZone('${zone.id}')" title="删除">🗑️</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+
+      list.innerHTML = desktopItem + zoneItems;
+    }
+
+    function showDesktopView() {
+      currentZoneId = null;
+      document.getElementById('mainTitle').textContent = '桌面全部';
+      document.getElementById('mainSubtitle').textContent = '拖拽文件到左侧分区或桌面分区框进行归类';
+      document.getElementById('desktopView').style.display = 'block';
+      document.getElementById('zoneDetail').classList.remove('active');
+      document.getElementById('emptyState').style.display = 'none';
+      renderDesktopFiles();
+      renderZoneList();
+    }
+
+    function renderDesktopFiles(filter = '') {
+      const grid = document.getElementById('desktopFilesGrid');
+      let files = desktopFiles;
+      if (filter) files = files.filter(f => f.name.toLowerCase().includes(filter.toLowerCase()));
+
+      if (files.length === 0) {
+        document.getElementById('desktopView').style.display = 'none';
+        document.getElementById('emptyState').style.display = 'flex';
+        return;
+      }
+      document.getElementById('desktopView').style.display = 'block';
+      document.getElementById('emptyState').style.display = 'none';
+      document.getElementById('desktopBadge').textContent = files.length;
+
+      grid.innerHTML = files.map((file, i) => `
+        <div class="file-card" draggable="true"
+             ondragstart="handleDragStart(event,${i},'desktop')"
+             ondragend="handleDragEnd(event)"
+             ondblclick="window.desktopAPI.openFile('${esc(file.path)}')"
+             oncontextmenu="event.preventDefault()">
+          <div class="file-icon">${getFileIcon(file)}</div>
+          <div class="file-name">${file.name}</div>
+        </div>
+      `).join('');
+    }
+
+    async function showZoneDetail(zone) {
+      currentZoneId = zone.id;
+      document.getElementById('mainTitle').textContent = zone.name;
+      document.getElementById('mainSubtitle').textContent = '拖拽桌面文件到此分区进行归类';
+      document.getElementById('desktopView').style.display = 'none';
+      document.getElementById('zoneDetail').classList.add('active');
+      document.getElementById('emptyState').style.display = 'none';
+
+      document.getElementById('zoneBigIcon').textContent = zone.icon;
+      document.getElementById('zoneBigIcon').style.background = zone.color + '22';
+      document.getElementById('zoneDetailTitle').textContent = zone.name;
+
+      const zoneFiles = await window.desktopAPI.readZoneFiles(zone.name);
+      zone.fileCount = zoneFiles.length;
+      document.getElementById('zoneDetailSubtitle').textContent = `${zoneFiles.length} 个文件`;
+
+      const dropHint = document.getElementById('dropHint');
+      const grid = document.getElementById('zoneFilesGrid');
+      if (zoneFiles.length === 0) {
+        dropHint.style.display = 'flex';
+        grid.innerHTML = '';
+      } else {
+        dropHint.style.display = 'none';
+        grid.innerHTML = zoneFiles.map(file => `
+          <div class="zone-file-card"
+               ondblclick="window.desktopAPI.openFile('${esc(file.path)}')"
+               oncontextmenu="event.preventDefault()">
+            <div class="file-icon">${getFileIcon(file)}</div>
+            <div class="file-name">${file.name}</div>
+            <button class="file-remove-btn" onclick="event.stopPropagation();removeFromZone('${esc(file.path)}')">✕</button>
+          </div>
+        `).join('');
+      }
+      renderZoneList();
+      updateStats();
+    }
+
+    function esc(p) { return p.replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+
+    function setupDragDrop() {
+      const dropArea = document.getElementById('zoneDropArea');
+      dropArea.addEventListener('dragover', (e) => { e.preventDefault(); dropArea.classList.add('drag-over'); });
+      dropArea.addEventListener('dragleave', () => { dropArea.classList.remove('drag-over'); });
+      dropArea.addEventListener('drop', async (e) => {
+        e.preventDefault(); dropArea.classList.remove('drag-over');
+        if (draggedFile && currentZoneId) {
+          await moveFileToZone(draggedFile.path, currentZoneId);
+        }
+      });
+    }
+
+    function handleDragStart(event, index, source) {
+      draggedFile = source === 'desktop' ? desktopFiles[index] : null;
+      event.target.classList.add('dragging');
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', index.toString());
+    }
+    function handleDragEnd(event) {
+      event.target.classList.remove('dragging');
+      draggedFile = null;
+    }
+    async function handleDropOnSidebarZone(event, zoneId) {
+      event.preventDefault();
+      if (draggedFile) {
+        await moveFileToZone(draggedFile.path, zoneId);
+        draggedFile = null;
+      }
+    }
+
+    async function moveFileToZone(filePath, zoneId) {
+      const result = await window.desktopAPI.moveFileToZone(filePath, zoneId);
+      if (result.success) {
+        showToast('已移动到分区', 'success');
+        await refreshDesktop();
+        if (currentZoneId) {
+          const zone = appData.zones.find(z => z.id === currentZoneId);
+          if (zone) await showZoneDetail(zone);
+        }
+      } else {
+        showToast('移动失败: ' + result.error, 'error');
+      }
+    }
+
+    async function removeFromZone(filePath) {
+      const result = await window.desktopAPI.removeFileFromZone(filePath);
+      if (result.success) {
+        showToast('已从分区移除', 'success');
+        await refreshDesktop();
+        if (currentZoneId) {
+          const zone = appData.zones.find(z => z.id === currentZoneId);
+          if (zone) await showZoneDetail(zone);
+        }
+      } else {
+        showToast('移除失败: ' + result.error, 'error');
+      }
+    }
+
+    function showCreateZoneModal() {
+      document.getElementById('createZoneModal').classList.add('active');
+      document.getElementById('zoneNameInput').value = '';
+      document.getElementById('zoneNameInput').focus();
+      selectedIcon = '📁'; selectedColor = '#6c5ce7';
+      initIconPicker(); initColorPicker();
+    }
+    function hideCreateZoneModal() { document.getElementById('createZoneModal').classList.remove('active'); }
+
+    async function createZone() {
+      const name = document.getElementById('zoneNameInput').value.trim();
+      if (!name) { showToast('请输入分区名称', 'error'); return; }
+      const result = await window.desktopAPI.createZone(name, selectedIcon, selectedColor);
+      if (result.success) {
+        appData.zones.push(result.zone);
+        hideCreateZoneModal();
+        showToast(`分区「${name}」创建成功`, 'success');
+        await refreshDesktop();
+        await showZoneDetail(result.zone);
+      } else {
+        showToast('创建失败: ' + result.error, 'error');
+      }
+    }
+
+    function showRenameZoneModal(zoneId) {
+      renameZoneId = zoneId;
+      const zone = appData.zones.find(z => z.id === zoneId);
+      if (!zone) return;
+      document.getElementById('renameZoneModal').classList.add('active');
+      document.getElementById('renameZoneInput').value = zone.name;
+      document.getElementById('renameZoneInput').focus();
+    }
+    function hideRenameZoneModal() { document.getElementById('renameZoneModal').classList.remove('active'); }
+
+    async function confirmRenameZone() {
+      const newName = document.getElementById('renameZoneInput').value.trim();
+      if (!newName) { showToast('请输入新名称', 'error'); return; }
+      const result = await window.desktopAPI.renameZone(renameZoneId, newName);
+      if (result.success) {
+        const zone = appData.zones.find(z => z.id === renameZoneId);
+        if (zone) zone.name = newName;
+        hideRenameZoneModal();
+        showToast('重命名成功', 'success');
+        await refreshDesktop();
+      } else {
+        showToast('重命名失败: ' + result.error, 'error');
+      }
+    }
+
+    async function deleteZone(zoneId) {
+      const zone = appData.zones.find(z => z.id === zoneId);
+      if (!zone) return;
+      if (!confirm(`确定删除分区「${zone.name}」？\n分区内的文件将被移回桌面。`)) return;
+      const result = await window.desktopAPI.deleteZone(zoneId);
+      if (result.success) {
+        appData.zones = appData.zones.filter(z => z.id !== zoneId);
+        if (currentZoneId === zoneId) currentZoneId = null;
+        showToast(`分区「${zone.name}」已删除`, 'success');
+        await refreshDesktop();
+        showDesktopView();
+      } else {
+        showToast('删除失败: ' + result.error, 'error');
+      }
+    }
+
+    async function deleteCurrentZone() {
+      if (currentZoneId) await deleteZone(currentZoneId);
+    }
+
+    function openZoneFolder() {
+      const zone = appData.zones.find(z => z.id === currentZoneId);
+      if (zone) window.desktopAPI.openFolder(zone.name);
+    }
+
+    function handleSearch() {
+      if (currentZoneId) return;
+      renderDesktopFiles(document.getElementById('searchInput').value);
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+      toast.innerHTML = `<span>${icons[type] || ''}</span> ${message}`;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    document.getElementById('zoneNameInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') createZone();
+      if (e.key === 'Escape') hideCreateZoneModal();
+    });
+    document.getElementById('renameZoneInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') confirmRenameZone();
+      if (e.key === 'Escape') hideRenameZoneModal();
+    });
+
+    init();
+  </script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+{
+  "name": "gewu",
+  "version": "1.0.0",
+  "description": "格物 - 桌面分区管理工具",
+  "author": "刘航境",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^28.3.3",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.gewu.desktop",
+    "productName": "格物",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "zone-overlay.html",
+      "icon-extractor.cs",
+      "icon-extractor.exe",
+      "assets/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "portable": {
+      "artifactName": "格物-免安装版-${version}.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "格物-安装包-${version}.exe",
+      "shortcutName": "格物",
+      "createDesktopShortcut": true,
+      "include": "installer.nsh"
+    }
+  }
+}
